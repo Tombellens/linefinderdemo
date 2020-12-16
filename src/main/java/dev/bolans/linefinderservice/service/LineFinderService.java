@@ -40,4 +40,7 @@ public class LineFinderService {
        return RCallerOptions.create(rScriptExecutable, rExecutable, FailurePolicy.RETRY_5, Long.MAX_VALUE, 100, RProcessStartUpOptions.create());
     }
 
+    private void uselessVoidForTesting(){
+        return;
+    }
 }
