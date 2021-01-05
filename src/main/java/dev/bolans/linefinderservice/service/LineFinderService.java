@@ -71,11 +71,12 @@ public class LineFinderService {
     }
 
     RCallerOptions getRCallerOptions(){
-       /* UNIX R CONFIG
-       String rScriptExecutable = "/usr/bin/Rscript";
-       String rExecutable = "/usr/bin/R";*/
-       String rScriptExecutable = "E:/_development/programs/R-4.0.3/bin/Rscript.exe";
-       String rExecutable = "E:/_development/programs/R-4.0.3/bin/R.exe";
+//      UNIX PATHS
+        String rScriptExecutable = "/usr/bin/Rscript";
+        String rExecutable = "/usr/bin/R";
+//       WINDOWS-PATHS
+//       String rScriptExecutable = "E:/_development/programs/R-4.0.3/bin/Rscript.exe";
+//       String rExecutable = "E:/_development/programs/R-4.0.3/bin/R.exe";
        return RCallerOptions.create(rScriptExecutable, rExecutable, FailurePolicy.RETRY_5, Long.MAX_VALUE, 100, RProcessStartUpOptions.create());
     }
 
