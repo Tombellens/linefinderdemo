@@ -9,9 +9,12 @@ import dev.bolans.linefinderservice.service.dto.FlorLineFinderDto;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.annotation.PostConstruct;
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -27,13 +30,23 @@ import java.util.stream.IntStream;
 @Slf4j
 @RequiredArgsConstructor
 public class LineFinderService {
+    private Path root = null;
+    private static final File TEMP_DIRECTORY = new File(System.getProperty("java.io.tmpdir"));
+
     @NonNull StorageService storageService;
     @NonNull LineFinderProperties lineFinderProperties;
+
+    @PostConstruct
+    public void init(){
+        File newDirectory = new File(TEMP_DIRECTORY, "results");
+        if (!newDirectory.exists()) newDirectory.mkdir();
+        this.root = newDirectory.toPath();
+    }
 
     public AStarLineFinderDto aStarPathFinding(MultipartFile multipartFile, BinarizationType binarizationType, Boolean morph, Integer step, Integer mfactor, Boolean trace) throws IOException, URISyntaxException {
         storageService.store(multipartFile.getInputStream(), multipartFile.getOriginalFilename());
         RCode rCode = RCode.create();
-        setAStarRCode(rCode, multipartFile.getOriginalFilename(), binarizationType, morph, step, mfactor, trace);
+        setAStarRCode(rCode, storageService.load(multipartFile.getOriginalFilename()), binarizationType, morph, step, mfactor, trace);
         RCaller caller = RCaller.create(rCode, getRCallerOptions());
         caller.runAndReturnResult("lines");
 
@@ -47,7 +60,7 @@ public class LineFinderService {
     public FlorLineFinderDto florPathFinding(MultipartFile multipartFile, BinarizationType binarizationType, FlorBinarizationType florBinarizationType, Boolean light) throws IOException, URISyntaxException {
         storageService.store(multipartFile.getInputStream(), multipartFile.getOriginalFilename());
         RCode rCode = RCode.create();
-        setFlorRCode(rCode, multipartFile.getOriginalFilename(), binarizationType, florBinarizationType, light);
+        setFlorRCode(rCode, storageService.load(multipartFile.getOriginalFilename()), binarizationType, florBinarizationType, light);
         RCaller caller = RCaller.create(rCode, getRCallerOptions());
         caller.runAndReturnResult("to_return");
 
@@ -64,7 +77,7 @@ public class LineFinderService {
     }
 
     String getScriptContent(String scriptPath) throws IOException, URISyntaxException {
-        URI scriptUri = LineFinderService.class.getClassLoader().getResource("line_finder_startup.R").toURI();
+        URI scriptUri = LineFinderService.class.getClassLoader().getResource(scriptPath).toURI();
         Path inputScript = Paths.get(scriptUri);
 
         return Files.lines(inputScript).collect(Collectors.joining("\n"));
@@ -80,27 +93,27 @@ public class LineFinderService {
        return RCallerOptions.create(rScriptExecutable, rExecutable, FailurePolicy.RETRY_5, Long.MAX_VALUE, 100, RProcessStartUpOptions.create());
     }
 
-    private void setAStarRCode(RCode rcode, String fileName, BinarizationType binarizationType, Boolean morph, Integer step, Integer mfactor, Boolean trace) throws IOException, URISyntaxException {
+    private void setAStarRCode(RCode rcode, Resource resource, BinarizationType binarizationType, Boolean morph, Integer step, Integer mfactor, Boolean trace) throws IOException, URISyntaxException {
         rcode.addRCode(getScriptContent(lineFinderProperties.getGetAStarLibrariesScript()));
-        rcode.addRCode("path <- \"uploads/" + fileName + "\"");
+        rcode.addRCode("path <- \"" + resource.getURL().getPath().replace("/C:", "C:") + "\"");
         rcode.addRCode("img <- image_read(path)");
         rcode.addRCode("img <- image_binarization(img, type =\"" + binarizationType.getLabel() + "\")");
         rcode.addRCode("areas <- image_textlines_astar(img, morph = " + morph.toString().toUpperCase()
                         + " , step = " + step.toString() + ", mfactor = " + mfactor.toString() + " , trace = " + trace.toString().toUpperCase() + ")");
         rcode.addRCode("result <- areas$overview");
-        rcode.addRCode("ocv_write(result, path=\"results/" + fileName + "\")");
+        rcode.addRCode("ocv_write(result, path=\"" + this.root.toString().replace('\\', '/') + '/' + resource.getFilename() + "\")");
         rcode.addRCode("lines <- areas$n");
     }
 
-    private void setFlorRCode(RCode rcode, String fileName, BinarizationType binarizationType, FlorBinarizationType florBinarizationType, Boolean light) throws IOException, URISyntaxException {
+    private void setFlorRCode(RCode rcode, Resource resource, BinarizationType binarizationType, FlorBinarizationType florBinarizationType, Boolean light) throws IOException, URISyntaxException {
         rcode.addRCode(getScriptContent(lineFinderProperties.getGetFlorLibrariesScript()));
-        rcode.addRCode("path <- \"uploads/" + fileName + "\"");
+        rcode.addRCode("path <- \"" + resource.getURL().getPath().replace("/C:", "C:") + "\"");
         rcode.addRCode("img <- image_read(path)");
         rcode.addRCode("img <- image_read(path)");
         rcode.addRCode("img <- image_binarization(img, type =\"" + binarizationType.getLabel() + "\")");
         rcode.addRCode("areas <- image_textlines_flor(img, light = " + light.toString().toUpperCase() +
                 ", type = \"" + florBinarizationType.getLabel() + "\")");
-        rcode.addRCode("ocv_write(areas$overview, path=\"results/" + fileName + "\")");
+        rcode.addRCode("ocv_write(areas$overview, path=\"" + this.root.toString().replace('\\', '/') + '/' + resource.getFilename() + "\")");
         rcode.addRCode("lines <- areas$n");
         rcode.addRCode("total_words <- 0 ");
         rcode.addRCode("counter <- 0");
@@ -108,7 +121,7 @@ public class LineFinderService {
                 "  counter <- counter + 1\n" +
                 "  textwords <- image_wordsegmentation(textline)\n" +
                 "  total_words <- total_words + textwords$n\n" +
-                "  ocv_write(textwords$overview, sprintf('results/%d"+ fileName + "', counter))\n" +
+                "  ocv_write(textwords$overview, sprintf('" + this.root.toString().replace('\\', '/') +"/%d"+ resource.getFilename() + "', counter))\n" +
                 "}");
         rcode.addRCode("to_return <- c(lines, total_words)");
     }

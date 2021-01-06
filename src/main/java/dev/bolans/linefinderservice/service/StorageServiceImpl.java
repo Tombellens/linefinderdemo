@@ -4,6 +4,9 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileSystemUtils;
+
+import javax.annotation.PostConstruct;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -13,7 +16,15 @@ import java.nio.file.Paths;
 
 @Service
 public class StorageServiceImpl implements StorageService{
-    private final Path root = Paths.get("uploads");
+    private Path root = null;
+    private static final File TEMP_DIRECTORY = new File(System.getProperty("java.io.tmpdir"));
+
+    @PostConstruct
+    public void springBootInit() {
+        File newDirectory = new File(TEMP_DIRECTORY, "uploads");
+        if (!newDirectory.exists()) newDirectory.mkdir();
+        this.root = newDirectory.toPath();
+    }
 
     @Override
     public void init() {
@@ -55,5 +66,6 @@ public class StorageServiceImpl implements StorageService{
     }
 
     @Override
-    public void deleteFile(String fileName) throws IOException { FileSystemUtils.deleteRecursively(Paths.get("uploads/" + fileName));}
+    public void deleteFile(String fileName) throws IOException {
+        FileSystemUtils.deleteRecursively(root.resolve(fileName));}
 }
