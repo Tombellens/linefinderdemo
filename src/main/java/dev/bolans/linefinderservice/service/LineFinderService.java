@@ -52,7 +52,7 @@ public class LineFinderService {
 
         int lines =  caller.getParser().getAsIntArray("lines")[0];
         String fileName = multipartFile.getOriginalFilename();
-        byte[] allBytes = getResultFileByteArray(fileName);
+        byte[] allBytes = getResultFileByteArray(this.root.resolve(fileName).toString());
         storageService.deleteFile(fileName);
 
         return new AStarLineFinderDto(fileName, allBytes, lines);
@@ -67,9 +67,9 @@ public class LineFinderService {
         int lines =  caller.getParser().getAsIntArray("to_return")[0];
         int totalWords =  caller.getParser().getAsIntArray("to_return")[1];
         String fileName = multipartFile.getOriginalFilename();
-        byte[] allBytes = getResultFileByteArray(fileName);
+        byte[] allBytes = getResultFileByteArray(this.root.resolve(fileName).toString());
         List<byte[]> listOfWordByteArrays = IntStream.rangeClosed(1, lines)
-                                                .mapToObj(i -> getResultFileByteArray(i+fileName))
+                                                .mapToObj(i -> getResultFileByteArray((i +fileName)))
                                                 .collect(Collectors.toList());
         storageService.deleteFile(fileName);
 
@@ -85,11 +85,11 @@ public class LineFinderService {
 
     RCallerOptions getRCallerOptions(){
 //      UNIX PATHS
-        String rScriptExecutable = "/usr/bin/Rscript";
-        String rExecutable = "/usr/bin/R";
+//        String rScriptExecutable = "/usr/bin/Rscript";
+//        String rExecutable = "/usr/bin/R";
 //       WINDOWS-PATHS
-//       String rScriptExecutable = "E:/_development/programs/R-4.0.3/bin/Rscript.exe";
-//       String rExecutable = "E:/_development/programs/R-4.0.3/bin/R.exe";
+       String rScriptExecutable = "E:/_development/programs/R-4.0.3/bin/Rscript.exe";
+       String rExecutable = "E:/_development/programs/R-4.0.3/bin/R.exe";
        return RCallerOptions.create(rScriptExecutable, rExecutable, FailurePolicy.RETRY_5, Long.MAX_VALUE, 100, RProcessStartUpOptions.create());
     }
 
@@ -128,7 +128,7 @@ public class LineFinderService {
 
     private byte[] getResultFileByteArray(String fileName){
         try {
-            return Files.readAllBytes(Paths.get("results/" + fileName));
+            return Files.readAllBytes(Paths.get( fileName));
         } catch (IOException e) {
             e.printStackTrace();
         }
